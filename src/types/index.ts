@@ -39,3 +39,29 @@ export interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
 }
+
+export interface Order {
+  id: string;
+  items: OrderItem[];
+  totalAmount: number;
+  status: 'pending' | 'sent' | 'confirmed' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+  externalOrderId?: string;
+  notes?: string;
+}
+
+export interface OrderItem {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unitPrice?: number;
+  totalPrice?: number;
+}
+
+export interface ApiConfig {
+  baseUrl: string;
+  apiKey?: string;
+  headers?: Record<string, string>;
+  timeout?: number;
+}

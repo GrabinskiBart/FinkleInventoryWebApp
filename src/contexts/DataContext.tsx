@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Item, StockReport } from '../types';
+import { Item, StockReport, Order, OrderItem } from '../types';
 import { supabase, DatabaseItem, DatabaseStockReport } from '../lib/supabase';
+import { apiService } from '../lib/apiService';
 
 interface DataContextType {
   items: Item[];
   stockReports: StockReport[];
+  orders: Order[];
   loading: boolean;
   addItem: (item: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'needsReorder'>) => Promise<void>;
   updateItem: (id: string, updates: Partial<Item>) => Promise<void>;
@@ -12,6 +14,9 @@ interface DataContextType {
   addStockReport: (report: Omit<StockReport, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateStockReportStatus: (reportId: string, status: StockReport['status']) => Promise<void>;
   applyStockReport: (reportId: string) => Promise<void>;
+  createOrder: (items: OrderItem[], notes?: string) => Promise<Order>;
+  sendOrderToApi: (orderId: string) => Promise<{ success: boolean; message?: string }>;
+  syncInventoryWithApi: () => Promise<{ success: boolean; message?: string }>;
   refreshData: () => Promise<void>;
 }
 
@@ -75,6 +80,7 @@ const reportToDbReport = (report: Partial<StockReport>) => ({
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<Item[]>([]);
   const [stockReports, setStockReports] = useState<StockReport[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Check if Supabase is configured
@@ -85,14 +91,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loadFromLocalStorage = () => {
     const storedItems = localStorage.getItem('restaurant_items');
     const storedReports = localStorage.getItem('restaurant_reports');
+    const storedOrders = localStorage.getItem('restaurant_orders');
     
     setItems(storedItems ? JSON.parse(storedItems) : []);
     setStockReports(storedReports ? JSON.parse(storedReports) : []);
+    setOrders(storedOrders ? JSON.parse(storedOrders) : []);
   };
 
   const saveToLocalStorage = () => {
     localStorage.setItem('restaurant_items', JSON.stringify(items));
     localStorage.setItem('restaurant_reports', JSON.stringify(stockReports));
+    localStorage.setItem('restaurant_orders', JSON.stringify(orders));
   };
 
   const loadFromSupabase = async () => {
@@ -160,8 +169,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!loading && !isSupabaseConfigured()) {
       saveToLocalStorage();
     }
-  }, [items, stockReports, loading]);
-
+  }, [items, stockReports, orders, loading]);
   const addItem = async (itemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'needsReorder'>) => {
     if (isSupabaseConfigured()) {
       try {
@@ -346,10 +354,90 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const createOrder = async (orderItems: OrderItem[], notes?: string): Promise<Order> => {
+    const totalAmount = orderItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+    
+    const newOrder: Order = {
+      id: Date.now().toString(),
+      items: orderItems,
+      totalAmount,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      notes
+    };
+
+    setOrders(prev => [newOrder, ...prev]);
+    return newOrder;
+  };
+
+  const sendOrderToApi = async (orderId: string): Promise<{ success: boolean; message?: string }> => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      return { success: false, message: 'Order not found' };
+    }
+
+    try {
+      // Update order status to sending
+      setOrders(prev => prev.map(o => 
+        o.id === orderId 
+          ? { ...o, status: 'pending' as const, updatedAt: new Date().toISOString() }
+          : o
+      ));
+
+      const result = await apiService.sendOrder(order);
+      
+      // Update order with result
+      setOrders(prev => prev.map(o => 
+        o.id === orderId 
+          ? { 
+              ...o, 
+              status: result.success ? 'sent' as const : 'failed' as const,
+              externalOrderId: result.externalOrderId,
+              updatedAt: new Date().toISOString()
+            }
+          : o
+      ));
+
+      return result;
+    } catch (error) {
+      // Update order status to failed
+      setOrders(prev => prev.map(o => 
+        o.id === orderId 
+          ? { ...o, status: 'failed' as const, updatedAt: new Date().toISOString() }
+          : o
+      ));
+
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to send order'
+      };
+    }
+  };
+
+  const syncInventoryWithApi = async (): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const inventoryData = items.map(item => ({
+        itemId: item.id,
+        itemName: item.name,
+        currentStock: item.currentStock
+      }));
+
+      const result = await apiService.syncInventory(inventoryData);
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to sync inventory'
+      };
+    }
+  };
+
   return (
     <DataContext.Provider value={{
       items,
       stockReports,
+      orders,
       loading,
       addItem,
       updateItem,
@@ -357,6 +445,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       addStockReport,
       updateStockReportStatus,
       applyStockReport,
+      createOrder,
+      sendOrderToApi,
+      syncInventoryWithApi,
       refreshData
     }}>
       {children}

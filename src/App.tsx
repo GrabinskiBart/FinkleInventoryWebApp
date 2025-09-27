@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 import ItemManagement from './components/ItemManagement';
 import StockReporting from './components/StockReporting';
 import StockReports from './components/StockReports';
+import OrderManagement from './components/OrderManagement';
 
 const AppContent: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -37,6 +38,8 @@ const AppContent: React.FC = () => {
         return <StockReporting />;
       case 'reports':
         return <StockReports />;
+      case 'orders':
+        return <OrderManagement />;
       default:
         return <Dashboard />;
     }
