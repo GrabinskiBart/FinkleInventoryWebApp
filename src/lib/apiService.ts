@@ -2,7 +2,8 @@ import { Order, OrderItem, ApiConfig } from '../types';
 
 // Default API configuration
 const DEFAULT_CONFIG: ApiConfig = {
-  baseUrl: process.env.REACT_APP_EXTERNAL_API_URL || 'https://api.example.com',
+  baseUrl: import.meta.env.VITE_EXTERNAL_API_URL || 'https://api.example.com',
+  apiKey: import.meta.env.VITE_EXTERNAL_API_KEY,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
