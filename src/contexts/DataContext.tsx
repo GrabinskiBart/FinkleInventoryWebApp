@@ -105,26 +105,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loadFromSupabase = async () => {
-    if (!supabase || !isSupabaseConfigured()) {
-      console.warn('Supabase not configured, falling back to localStorage');
-      loadFromLocalStorage();
-      return;
-    }
-
-    // Validate environment variables format
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseKey || 
-        !supabaseUrl.startsWith('https://') || 
-        !supabaseUrl.includes('.supabase.co') ||
-        supabaseKey.length < 100) {
-      console.warn('Invalid Supabase configuration detected, falling back to localStorage');
-      loadFromLocalStorage();
-      return;
-    }
-
     try {
+      if (!supabase || !isSupabaseConfigured()) {
+        console.warn('Supabase not configured, falling back to localStorage');
+        loadFromLocalStorage();
+        return;
+      }
+
+      // Validate environment variables format
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          !supabaseUrl.startsWith('https://') || 
+          !supabaseUrl.includes('.supabase.co') ||
+          supabaseKey.length < 100) {
+        console.warn('Invalid Supabase configuration detected, falling back to localStorage');
+        loadFromLocalStorage();
+        return;
+      }
+
       // Load items
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
@@ -144,7 +144,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setItems(itemsData?.map(dbItemToItem) || []);
       setStockReports(reportsData?.map(dbReportToReport) || []);
     } catch (error) {
-      console.warn('Supabase connection failed, falling back to localStorage:', error);
+      console.warn('Supabase connection failed, falling back to localStorage. Error:', error);
       // Fallback to localStorage
       loadFromLocalStorage();
     }
@@ -172,8 +172,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [items, stockReports, orders, loading]);
 
   const addItem = async (itemData: Omit<Item, 'id' | 'createdAt' | 'updatedAt' | 'needsReorder'>) => {
-    if (isSupabaseConfigured()) {
-      try {
+    try {
+      if (isSupabaseConfigured()) {
         const { data, error } = await supabase
           .from('items')
           .insert([itemToDbItem({ ...itemData, needsReorder: itemData.currentStock <= itemData.minStockLevel })])
@@ -184,11 +184,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const newItem = dbItemToItem(data);
         setItems(prev => [...prev, newItem]);
-      } catch (error) {
-        console.error('Error adding item:', error);
-        throw error;
+      } else {
+        // Fallback to localStorage
+        const newItem: Item = {
+          ...itemData,
+          id: Date.now().toString(),
+          needsReorder: itemData.currentStock <= itemData.minStockLevel,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setItems(prev => [...prev, newItem]);
       }
-    } else {
+    } catch (error) {
+      console.warn('Failed to add item via Supabase, falling back to localStorage:', error);
       // Fallback to localStorage
       const newItem: Item = {
         ...itemData,
@@ -199,11 +207,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       setItems(prev => [...prev, newItem]);
     }
-  };
 
   const updateItem = async (id: string, updates: Partial<Item>) => {
-    if (isSupabaseConfigured()) {
-      try {
+    try {
+      if (isSupabaseConfigured()) {
         const { data, error } = await supabase
           .from('items')
           .update(itemToDbItem(updates))
@@ -215,11 +222,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const updatedItem = dbItemToItem(data);
         setItems(prev => prev.map(item => item.id === id ? updatedItem : item));
-      } catch (error) {
-        console.error('Error updating item:', error);
-        throw error;
+      } else {
+        // Fallback to localStorage
+        setItems(prev => prev.map(item => {
+          if (item.id === id) {
+            const updatedItem = { ...item, ...updates, updatedAt: new Date().toISOString() };
+            if (updates.currentStock !== undefined || updates.minStockLevel !== undefined) {
+              updatedItem.needsReorder = updatedItem.currentStock <= updatedItem.minStockLevel;
+            }
+            return updatedItem;
+          }
+          return item;
+        }));
       }
-    } else {
+    } catch (error) {
+      console.warn('Failed to update item via Supabase, falling back to localStorage:', error);
       // Fallback to localStorage
       setItems(prev => prev.map(item => {
         if (item.id === id) {
@@ -232,11 +249,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return item;
       }));
     }
-  };
 
   const deleteItem = async (id: string) => {
-    if (isSupabaseConfigured()) {
-      try {
+    try {
+      if (isSupabaseConfigured()) {
         const { error } = await supabase
           .from('items')
           .delete()
@@ -245,26 +261,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (error) throw error;
 
         setItems(prev => prev.filter(item => item.id !== id));
-      } catch (error) {
-        console.error('Error deleting item:', error);
-        throw error;
+      } else {
+        // Fallback to localStorage
+        setItems(prev => prev.filter(item => item.id !== id));
       }
-    } else {
+    } catch (error) {
+      console.warn('Failed to delete item via Supabase, falling back to localStorage:', error);
       // Fallback to localStorage
       setItems(prev => prev.filter(item => item.id !== id));
     }
-  };
 
   const addStockReport = async (reportData: Omit<StockReport, 'id' | 'createdAt' | 'updatedAt'>) => {
     const isAdminReport = reportData.userId === '1'; // Admin user ID
     
-    if (isSupabaseConfigured()) {
-      try {
+    try {
+      if (isSupabaseConfigured()) {
         // For admin reports, set status to 'applied' and update item stock immediately
         const finalReportData = isAdminReport 
           ? { ...reportData, status: 'applied' as const }
           : reportData;
-          
+            
         const { data, error } = await supabase
           .from('stock_reports')
           .insert([reportToDbReport(finalReportData)])
@@ -280,11 +296,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (isAdminReport) {
           await updateItem(reportData.itemId, { currentStock: reportData.reportedStock });
         }
-      } catch (error) {
-        console.error('Error adding stock report:', error);
-        throw error;
+      } else {
+        // Fallback to localStorage
+        const finalStatus = isAdminReport ? 'applied' as const : reportData.status;
+        const newReport: StockReport = {
+          ...reportData,
+          status: finalStatus,
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setStockReports(prev => [newReport, ...prev]);
+        
+        // If admin report, also update the item's stock immediately
+        if (isAdminReport) {
+          setItems(prev => prev.map(item => {
+            if (item.id === reportData.itemId) {
+              const updatedItem = { ...item, currentStock: reportData.reportedStock, updatedAt: new Date().toISOString() };
+              updatedItem.needsReorder = updatedItem.currentStock <= updatedItem.minStockLevel;
+              return updatedItem;
+            }
+            return item;
+          }));
+        }
       }
-    } else {
+    } catch (error) {
+      console.warn('Failed to add stock report via Supabase, falling back to localStorage:', error);
       // Fallback to localStorage
       const finalStatus = isAdminReport ? 'applied' as const : reportData.status;
       const newReport: StockReport = {
@@ -308,11 +345,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }));
       }
     }
-  };
 
   const updateStockReportStatus = async (reportId: string, status: StockReport['status']) => {
-    if (isSupabaseConfigured()) {
-      try {
+    try {
+      if (isSupabaseConfigured()) {
         const { data, error } = await supabase
           .from('stock_reports')
           .update({ status })
@@ -326,11 +362,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setStockReports(prev => prev.map(report => 
           report.id === reportId ? updatedReport : report
         ));
-      } catch (error) {
-        console.error('Error updating stock report status:', error);
-        throw error;
+      } else {
+        // Fallback to localStorage
+        setStockReports(prev => prev.map(report => 
+          report.id === reportId 
+            ? { ...report, status, updatedAt: new Date().toISOString() }
+            : report
+        ));
       }
-    } else {
+    } catch (error) {
+      console.warn('Failed to update stock report status via Supabase, falling back to localStorage:', error);
       // Fallback to localStorage
       setStockReports(prev => prev.map(report => 
         report.id === reportId 
@@ -338,7 +379,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           : report
       ));
     }
-  };
 
   const applyStockReport = async (reportId: string) => {
     const report = stockReports.find(r => r.id === reportId);
