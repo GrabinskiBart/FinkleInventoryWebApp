@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import ItemManagement from './components/ItemManagement';
+import QuickStockCheck from './components/QuickStockCheck';
 import StockReporting from './components/StockReporting';
 import StockReports from './components/StockReports';
 import OrderManagement from './components/OrderManagement';
@@ -34,6 +35,8 @@ const AppContent: React.FC = () => {
         return <Dashboard />;
       case 'items':
         return <ItemManagement />;
+      case 'quick-check':
+        return <QuickStockCheck />;
       case 'report':
         return <StockReporting />;
       case 'reports':

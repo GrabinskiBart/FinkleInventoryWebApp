@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { LogOut, Package, AlertTriangle, Settings, User, FileText, ChefHat, Menu, X, Send } from 'lucide-react';
+import { LogOut, Package, AlertTriangle, Settings, User, FileText, ChefHat, Menu, X, Send, Eye } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +15,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange }) 
   const adminPages = [
     { id: 'dashboard', label: 'Dashboard', icon: Package },
     { id: 'items', label: 'Manage Inventory', icon: Settings },
+    { id: 'quick-check', label: 'Quick Stock Check', icon: Eye },
     { id: 'report', label: 'Stock Check', icon: AlertTriangle },
     { id: 'reports', label: 'Stock Reports', icon: FileText },
     { id: 'orders', label: 'Order Management', icon: Send }
@@ -23,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange }) 
   const userPages = [
     { id: 'dashboard', label: 'Dashboard', icon: Package },
     { id: 'items', label: 'Manage Inventory', icon: Settings },
+    { id: 'quick-check', label: 'Quick Stock Check', icon: Eye },
     { id: 'report', label: 'Stock Check', icon: AlertTriangle },
     { id: 'reports', label: 'My Reports', icon: FileText },
     { id: 'orders', label: 'Order Management', icon: Send }
