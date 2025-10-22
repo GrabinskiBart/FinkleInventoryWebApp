@@ -207,6 +207,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       setItems(prev => [...prev, newItem]);
     }
+  };
 
   const updateItem = async (id: string, updates: Partial<Item>) => {
     try {
@@ -249,6 +250,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return item;
       }));
     }
+  };
 
   const deleteItem = async (id: string) => {
     try {
@@ -270,6 +272,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Fallback to localStorage
       setItems(prev => prev.filter(item => item.id !== id));
     }
+  };
 
   const addStockReport = async (reportData: Omit<StockReport, 'id' | 'createdAt' | 'updatedAt'>) => {
     const isAdminReport = reportData.userId === '1'; // Admin user ID
@@ -345,6 +348,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }));
       }
     }
+  };
 
   const updateStockReportStatus = async (reportId: string, status: StockReport['status']) => {
     try {
@@ -379,6 +383,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           : report
       ));
     }
+  };
 
   const applyStockReport = async (reportId: string) => {
     const report = stockReports.find(r => r.id === reportId);
